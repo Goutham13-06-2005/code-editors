@@ -1,7 +1,7 @@
 const path = require('path'); // Import the 'path' module
 
 // --- Server Setup ---
-const app = express();
+1
 const express = require('express');
 // Use Fly.io's default internal port 8080, or 3001 locally
 const PORT = process.env.PORT || 8080; // Use Railway's port or 3001
