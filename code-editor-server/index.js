@@ -1,33 +1,87 @@
-const path = require('path'); // Import the 'path' module
-
-// --- Server Setup ---
-1
 const express = require('express');
-// Use Fly.io's default internal port 8080, or 3001 locally
-const PORT = process.env.PORT || 8080; // Use Railway's port or 3001
-app.use(express.json());
+const http = require('http'); // <-- Import the 'http' module
+const { Server } = require("socket.io"); // <-- Import the 'Server' class
+const path = require('path'); // Import the 'path' module
+const { nanoid } = require('nanoid'); // Assuming you use nanoid
+const { Pool } = require('pg'); // Assuming you use pg
 
-// --- UPDATED STATIC FILE SERVING ---
-// Serve static files from the React build directory
-// Serve static files from the 'public' folder (where Docker copies the build)
-app.use(express.static(path.join(__dirname, 'public')));
+// Debugging line (optional, but helpful)
+console.log("Checking DATABASE_URL value:", process.env.DATABASE_URL);
 
-// Ensure the fallback route also points to the 'public' folder
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// --- Database Setup ---
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    require: true,
+  },
 });
 
-// --- Socket.IO Setup (Keep this section) ---
+const createTable = async () => {
+  try {
+    const queryText = `
+      CREATE TABLE IF NOT EXISTS urls (
+        short_code TEXT PRIMARY KEY,
+        long_url TEXT NOT NULL
+      );
+    `;
+    await pool.query(queryText);
+    console.log("Table 'urls' is ready.");
+  } catch (err) {
+    console.error("Error creating table", err);
+  }
+};
+
+createTable();
+
+// --- Server Setup ---
+const app = express();
+const PORT = process.env.PORT || 3001; // Use Render's port or 3001
+app.use(express.json());
+
+// --- CORRECTED STATIC FILE SERVING ---
+// Serve static files from the React app's build directory
+app.use(express.static(path.join(__dirname, '../code-editor-client/build')));
+
+// --- API Endpoints ---
+app.post('/api/shorten', async (req, res) => {
+  // ... (Your shorten endpoint code) ...
+  // Make sure the URL uses your actual deployed domain
+  const deployedUrl = `https://your-app-name.onrender.com`; // <-- Replace with your Render URL
+  // ... (rest of shorten code) ...
+});
+
+// --- CORRECTED FALLBACK ROUTE ---
+// Handles any requests that don't match the API routes
+// Sends the React app's index.html for client-side routing
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../code-editor-client/build', 'index.html'));
+});
+
+// --- Socket.IO Setup ---
 const server = http.createServer(app);
-// ... rest of your socket.io configuration ...
-// Make sure CORS origin points to your future Railway URL or '*' for testing
 const io = new Server(server, {
   cors: {
-    origin: "*", // Allow all origins for now, refine later
+    origin: "*", // Allow all origins for now, restrict later if needed
     methods: ["GET", "POST"]
   }
 });
-// ... rest of your io.on('connection', ...) code ...
+
+io.on('connection', (socket) => {
+  console.log(`A user connected: ${socket.id}`);
+
+  socket.on('join-room', (roomId) => {
+    socket.join(roomId);
+    console.log(`User ${socket.id} joined room ${roomId}`);
+  });
+
+  socket.on('code-change', ({ roomId, newCode }) => {
+    socket.to(roomId).emit('receive-code-change', newCode);
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`A user disconnected: ${socket.id}`);
+  });
+});
 
 // Start the server (using 'server' for socket.io)
 server.listen(PORT, () => {
