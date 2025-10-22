@@ -1,44 +1,38 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require("socket.io");
-const cors = require('cors');
+const path = require('path'); // Import the 'path' module
 
+// --- Server Setup ---
 const app = express();
-// Use Render's port or 3001
-const PORT = process.env.PORT || 3001; 
+const PORT = process.env.PORT || 3001; // Use Railway's port or 3001
+app.use(express.json());
 
-// --- THIS IS THE CHANGE ---
-// We will get this URL from Render after we deploy the frontend
-const frontendURL = process.env.FRONTEND_URL || "http://localhost:3000";
+// --- UPDATED STATIC FILE SERVING ---
+// Serve static files from the React build directory
+app.use(express.static(path.join(__dirname, '../code-editor-client/build')));
 
-app.use(cors({ origin: frontendURL }));
+// --- API Endpoints (Keep these as they were) ---
+// app.post('/api/shorten', ...);
+// app.get('/:shortCode', ...);
 
+// --- ADD THIS FALLBACK ROUTE ---
+// Handles any requests that don't match the API routes
+// Sends the React app's index.html for client-side routing
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../code-editor-client/build', 'index.html'));
+});
+
+// --- Socket.IO Setup (Keep this section) ---
 const server = http.createServer(app);
+// ... rest of your socket.io configuration ...
+// Make sure CORS origin points to your future Railway URL or '*' for testing
 const io = new Server(server, {
   cors: {
-    origin: frontendURL,
+    origin: "*", // Allow all origins for now, refine later
     methods: ["GET", "POST"]
   }
 });
+// ... rest of your io.on('connection', ...) code ...
 
-// ... (The rest of your io.on('connection', ...) code remains exactly the same) ...
-io.on('connection', (socket) => {
-  console.log(`A user connected: ${socket.id}`);
-  
-  socket.on('join-room', (roomId) => {
-    socket.join(roomId);
-    console.log(`User ${socket.id} joined room ${roomId}`);
-  });
-
-  socket.on('code-change', ({ roomId, newCode }) => {
-    socket.to(roomId).emit('receive-code-change', newCode);
-  });
-
-  socket.on('disconnect', () => {
-    console.log(`A user disconnected: ${socket.id}`);
-  });
-});
-
+// Start the server (using 'server' for socket.io)
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
