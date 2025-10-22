@@ -2,22 +2,18 @@ const path = require('path'); // Import the 'path' module
 
 // --- Server Setup ---
 const app = express();
-const PORT = process.env.PORT || 3001; // Use Railway's port or 3001
+// Use Fly.io's default internal port 8080, or 3001 locally
+const PORT = process.env.PORT || 8080; // Use Railway's port or 3001
 app.use(express.json());
 
 // --- UPDATED STATIC FILE SERVING ---
 // Serve static files from the React build directory
-app.use(express.static(path.join(__dirname, '../code-editor-client/build')));
+// Serve static files from the 'public' folder (where Docker copies the build)
+app.use(express.static(path.join(__dirname, 'public')));
 
-// --- API Endpoints (Keep these as they were) ---
-// app.post('/api/shorten', ...);
-// app.get('/:shortCode', ...);
-
-// --- ADD THIS FALLBACK ROUTE ---
-// Handles any requests that don't match the API routes
-// Sends the React app's index.html for client-side routing
+// Ensure the fallback route also points to the 'public' folder
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../code-editor-client/build', 'index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // --- Socket.IO Setup (Keep this section) ---
