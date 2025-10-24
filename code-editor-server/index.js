@@ -1,89 +1,56 @@
+// Remove dotenv, pg, and nanoid requires if they were there
 const express = require('express');
-const http = require('http'); // <-- Import the 'http' module
-const { Server } = require("socket.io"); // <-- Import the 'Server' class
-const path = require('path'); // Import the 'path' module
-const { nanoid } = require('nanoid'); // Assuming you use nanoid
-const { Pool } = require('pg'); // Assuming you use pg
+const http = require('http');
+const { Server } = require("socket.io");
+const cors = require('cors');
+// const path = require('path'); // Only needed if serving static files from here
 
-// Debugging line (optional, but helpful)
-console.log("Checking DATABASE_URL value:", process.env.DATABASE_URL);
-
-// --- Database Setup ---
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    require: true,
-  },
-});
-
-const createTable = async () => {
-  try {
-    const queryText = `
-      CREATE TABLE IF NOT EXISTS urls (
-        short_code TEXT PRIMARY KEY,
-        long_url TEXT NOT NULL
-      );
-    `;
-    await pool.query(queryText);
-    console.log("Table 'urls' is ready.");
-  } catch (err) {
-    console.error("Error creating table", err);
-  }
-};
-
-createTable();
-
-// --- Server Setup ---
 const app = express();
-const PORT = process.env.PORT || 3001; // Use Render's port or 3001
-app.use(express.json());
+const PORT = 3001; // Keep using port 3001 locally
 
-// --- CORRECTED STATIC FILE SERVING ---
-// Serve static files from the React app's build directory
-app.use(express.static(path.join(__dirname, '../code-editor-client/build')));
+// Allow connections from your React app (running on port 3000)
+app.use(cors({ origin: "http://localhost:3000" }));
 
-// --- API Endpoints ---
-app.post('/api/shorten', async (req, res) => {
-  // ... (Your shorten endpoint code) ...
-  // Make sure the URL uses your actual deployed domain
-  const deployedUrl = `https://your-app-name.onrender.com`; // <-- Replace with your Render URL
-  // ... (rest of shorten code) ...
-});
-
-// --- CORRECTED FALLBACK ROUTE ---
-// Handles any requests that don't match the API routes
-// Sends the React app's index.html for client-side routing
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../code-editor-client/build', 'index.html'));
-});
-
-// --- Socket.IO Setup ---
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // Allow all origins for now, restrict later if needed
+    origin: "http://localhost:3000",
     methods: ["GET", "POST"]
   }
 });
 
+// Store current code for each room *in memory* (will reset if server restarts)
+const roomCode = {}; // Example: { 'roomId1': 'code snippet', 'roomId2': 'another code' }
+
 io.on('connection', (socket) => {
-  console.log(`A user connected: ${socket.id}`);
+  console.log(`User connected: ${socket.id}`);
 
   socket.on('join-room', (roomId) => {
     socket.join(roomId);
     console.log(`User ${socket.id} joined room ${roomId}`);
+    // Send the current code in the room to the newly joined user
+    if (roomCode[roomId]) {
+      socket.emit('receive-code-change', roomCode[roomId]);
+    } else {
+        // Initialize room if it doesn't exist
+        roomCode[roomId] = "// Start typing...";
+        socket.emit('receive-code-change', roomCode[roomId]);
+    }
   });
 
   socket.on('code-change', ({ roomId, newCode }) => {
+    // Update the code for this room in memory
+    roomCode[roomId] = newCode;
+    // Broadcast this change only to users in the *same room*
     socket.to(roomId).emit('receive-code-change', newCode);
   });
 
   socket.on('disconnect', () => {
-    console.log(`A user disconnected: ${socket.id}`);
+    console.log(`User disconnected: ${socket.id}`);
+    // Optional: Clean up empty rooms from memory if needed
   });
 });
 
-// Start the server (using 'server' for socket.io)
 server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Server is running on http://localhost:${PORT}`);
 });

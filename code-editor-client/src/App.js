@@ -6,7 +6,7 @@ import { useParams } from 'react-router-dom'; // Import hook to read URL
 // We will get this URL from Render after we deploy the backend
 //const backendURL = process.env.REACT_APP_BACKEND_URL || "http://localhost:3001";
 //const socket = io(backendURL);
-const socket = io();
+const socket = io('http://localhost:3001');
 
 function App() {
   const [isConnected, setIsConnected] = useState(false);
